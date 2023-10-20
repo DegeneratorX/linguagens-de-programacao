@@ -1,0 +1,82 @@
+We first define the tree’s type:
+<Tree> ::= tree(key:<Literal> val:<Value> left: <Tree> right: <Tree>)
+| leaf
+
+Each node is either a leaf or has two children. This uses a record to define the tree instead of a tuple. There is a very good reason for this which will become clear when we talk about the principle of independence. Assume that we have the following constraints on how the tree is drawn:
+
+1. There is a minimum horizontal spacing between both subtrees of every node. To be precise, the rightmost node of the left subtree is at a minimal horizontal distance from the leftmost node of the right subtree.
+2. If a node has two child nodes, then its horizontal position is the arithmetic average of their horizontal positions.
+3. If a node has only one child node, then the child is directly underneath it.
+4. The vertical position of a node is proportional to its level in the tree.
+
+In addition, to avoid clutter the drawing shows only the nodes of type tree.
+
+Example of a tree:
+
+tree(key:a val:111
+    left:tree(key:b val:55
+        left:tree(key:x val:100
+            left:tree(key:z val:56 left:leaf right:leaf)
+            right:tree(key:w val:23 left:leaf right:leaf))
+    right:tree(key:y val:105 left:leaf
+        right:tree(key:r val:77 left:leaf right:leaf)))
+right:tree(key:c val:123
+    left:tree(key:d val:119
+        left:tree(key:g val:44 left:leaf right:leaf)
+        right:tree(key:h val:50
+            left:tree(key:i val:5 left:leaf right:leaf)
+            right:tree(key:j val:6 left:leaf right:leaf)))
+    right:tree(key:e val:133 left:leaf right:leaf)))
+
+The tree-drawing algorithm calculates node positions by traversing the tree, passing information between nodes, and calculating values at each node. The traversal has to be done carefully so that all the information is available at the right time. Exactly what traversal is the right one depends on what the constraints are. For the above four constraints, it is sufficient to traverse the tree in a depth-first order. In this order, each left subtree of a node is visited before the right subtree. A basic depth-first traversal looks like this:
+
+A tree-drawing algorithm:
+
+Scale=30
+proc {DepthFirst Tree Level LeftLim ?RootX ?RightLim}
+    case Tree
+    of tree(x:X y:Y left:leaf right:leaf ...) then
+        X=RootX=RightLim=LeftLim
+        Y=Scale*Level
+    [] tree(x:X y:Y left:L right:leaf ...) then
+        X=RootX
+        Y=Scale*Level
+        {DepthFirst L Level+1 LeftLim RootX RightLim}
+    [] tree(x:X y:Y left:leaf right:R ...) then
+        X=RootX
+        Y=Scale*Level
+        {DepthFirst R Level+1 LeftLim RootX RightLim}
+    [] tree(x:X y:Y left:L right:R ...) then
+            LRootX LRightLim RRootX RLeftLim
+        in
+            Y=Scale*Level
+            {DepthFirst L Level+1 LeftLim LRootX LRightLim}
+            RLeftLim=LRightLim+Scale
+            {DepthFirst R Level+1 RLeftLim RRootX RightLim}
+            X=RootX=(LRootX+RRootX) div 2
+    end
+end
+
+proc {DepthFirst Tree}
+    case Tree
+    of tree(left:L right:R ...) then
+        {DepthFirst L}
+        {DepthFirst R}
+    [] leaf then
+        skip
+    end
+end
+
+The tree-drawing algorithm does a depth-first traversal and calculates the (x,y) coordinates of each node during the traversal. As a preliminary to running the algorithm, we extend the tree nodes with the fields x and y at each node:
+
+fun {AddXY Tree}
+    case Tree
+    of tree(left:L right:R ...) then
+        {Adjoin Tree
+            tree(x:_ y:_ left:{AddXY L} right:{AddXY R})}
+    [] leaf then
+        leaf
+    end
+end
+
+The function AddXY returns a new tree with the two fields x and y added to all nodes. It uses the Adjoin function which can add new fields to records and override old ones. This is explained in appendix B.3.2. The tree-drawing algorithm will fill in these two fields with the coordinates of each node. If the two fields exist nowhere else in the record, then there is no conflict with any other information in the record. To implement the tree-drawing algorithm, we extend the depth-first traversal by passing two arguments down (namely, level in the tree and limit on leftmost position of subtree) and two arguments up (namely, horizontal position of the subtree’s root and rightmost position of subtree). Downward-passed arguments are sometimes called inherited arguments. Upward-passed arguments are sometimes called synthesized arguments. With these extra arguments, we have enough information to calculate the positions of all nodes. Figure 3.18 gives the complete tree-drawing algorithm. The Scale parameter gives the basic size unit of the drawn tree, i.e., the minimum distance between nodes. The initial arguments are Level=1 and LeftLim=Scale. There are four cases, depending on whether a node has two sub- trees, one subtree (left or right), or zero subtrees. Pattern matching in the case statement always picks the correct case. This works because the tests are done in sequential order.

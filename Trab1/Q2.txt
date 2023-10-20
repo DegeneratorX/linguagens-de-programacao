@@ -1,0 +1,166 @@
+2)
+
+AVISOS IMPORTANTES:
+
+- Como a linguagem usadas será uma linguagem funcional, o código deverá escrito como uma função, ao invés de um procedimento.
+- Em relação ao programa de parsing, note que a linguagem alvo precisa ter casamento de padrões e facilita muito se ela tiver os "atoms" para representar os tokens, como Elixir e Erlang. Já em Haskell, você precisaria declarar um tipo algébrico para identificar os tokens.
+- Caso resolva implementar em linguagens não-funcionais, como Python, tenha o cuidado de restringir-se a um subconjunto da linguagem que esteja contido ou seja igual ao modelo declarativo de Oz.
+- Para implementar em outra linguagem, é preciso descobrir como definir valores "atom" na linguagem. Os atoms são utilizados, no código Oz, para implementar os tokens da linguagem da gramática da Tabela 3.3 (ex: prog, ´;´, if, while, read, ´==´, etc). No caso de Elixir, os valores atom são suportados diretamente, mas no caso de Haskell é preciso definir um tipo algébrico para representar um tipo enumeração que representa o conjunto de tokens da gramática (cada token como um construtor). Note que cada linguagem tem a sua definição léxica própria para um valor atom. Por exemplo, em Haskell e Elixir, não há como definir um token com o símbolo ´.´ (ponto). Portanto, você vai precisar definir algo como :dot (em Elixir) ou Dot (em Haskell).
+- Note que um programa da gramática da Tabela 3.3 é representado como uma lista de tokens, que é dada de entrada a funções de parsing (Prog). No parser recursivo-descendente, define-se uma função para cada variável (não-terminal) da gramática. Dentro da função, há um comando case que testa qual a próxima produção aplicar baseado no primeiro token da lista de token da entrada (isso é possível pois a gramática é do tipo LL(1), o que aprenderão na disciplina de Construção de Compiladores).
+- Cada função de parsing, para cada variável da gramática (ex: Stat, Prog, etc) retorna uma árvore sintática da gramática da Tabela 3.3 e usa um acumulador para receber a lista dos próximos tokens (S1) e calcular a lista dos tokens seguintes (Sn). A árvore sintática é uma árvore onde os nós não-folha são referentes às produções da gramática e os folhas são tokens.  Por exemplo, existe um nó que representa a produção do if, carregando três sub-árvores, referentes à condição booleana (<Comp>), o ramo "then" (primeiro <Stat>) e o ramo "else" (segundo <Stat>). O nó raiz, portanto, é o nó da única produção da varável <Prog>, carrgando um identificador e uma sub-ávrore que representa o comando que o programa vai executar (<Stat). No exercício 1, vocês já usaram árvores e aprenderam que podem implementá-la com um tipo registro, também conhecido, dependendo da linguagem, como estrutura ou produto de tipos;
+- Outra coisa que é necessária é o casamento de padrões, para reconhecer os tokens, que, como dito anteriormente, são atoms.
+- Como exemplo, mostro anexado um ESBOÇO de código da função da Figura 3.20 em Elixir. Note o casemento de padrões (PATTERN MATCHING) para identificar os tokens, como foi feito no Oz. Note que eu não coloquei o código que gera o nó da árvore sintática (retorno). Ressalto que eu não executei esse código, mas mostra como as abstrações de linguagem de programação usadas em Oz para resolver o problema são traduzidas para Elixir (seria simples reescrever em Erlang, que suporta as mesmas abstrações).
+- No caso do Haskell, o código não é muito diferente, a menos de sintaxe, pois todos os elementos de abstração usados estão nas duas linguagens. A principal diferença é que valores atoms em Haskell são construtores de um tipo algébrico. Logo, é necessário escrever um tipo algébrico parecido com o abaixo, que representa uma tipo enumeração (de tokens):  data Token = Begin | If | While | Read | Write | Semicolon | Assign | <outros tokens .......>
+
+Lembro que Haskell também suporta o comando case para fazer casamento de padrões.
+
+Implemente o programa baseado nesse texto abaixo usando os algoritmos de exemplo e os avisos importantes como base. Seja o mais fiel possível:
+
+```oz
+fun {Stat S1 Sn}
+T|S2=S1 in
+    case T
+    of begin then
+        {Sequence Stat fun {$ X} X== ́; ́ end S2  ́end ́|Sn}
+    []  ́if ́ then C X1 X2 S3 S4 S5 S6 in
+        {Comp C S2 S3}
+        S3= ́then ́|S4
+        X1={Stat S4 S5}
+        S5= ́else ́|S6
+        X2={Stat S6 Sn}
+        ´if´(C X1 X2)
+    [] while then C X S3 S4 in
+        C={Comp S2 S3}
+        S3= ́do ́|S4
+        X={Stat S4 Sn}
+        while(C X)
+    [] read then I in
+        I={Id S2 Sn}
+        read(I)
+    [] write then E in
+        E={Expr S2 Sn}
+        write(E)
+    elseif {IsIdent T} then E S3 in
+        S2= ́:= ́|S3
+        E={Expr S3 Sn}
+        assign(T E)
+    else
+        S1=Sn
+        raise error(S1) end
+    end
+end
+```
+
+Figure 3.20: Left-to-right top-down parser with one token lookahead.
+
+The main parser call is the function {Prog S1 Sn}, where S1 is an input list of
+tokens and Sn is the rest of the list after parsing. This call returns the parsed
+output. For example:
+
+```oz
+declare A Sn in
+A={Prog
+    [program foo  ́; ́
+    while a  ́+ ́ 3  ́< ́ b  ́do ́ b  ́:= ́ b  ́+ ́ 1  ́end ́]
+    Sn}
+{Browse A}
+```
+
+displays
+
+```
+prog(foo while( ́< ́( ́+ ́(a 3) b) assign(b  ́+ ́(b 1))))
+```
+
+We give commented program code for the complete parser. Prog is written as
+follows:
+
+```oz
+fun {Prog S1 Sn}
+    Y Z S2 S3 S4 S5 in
+        S1=program|S2
+        Y={Id S2 S3}
+        S3= ́; ́|S4
+        Z={Stat S4 S5}
+        S5= ́end ́|Sn
+        prog(Y Z)
+end
+```
+
+The accumulator is threaded through all terminal and nonterminal symbols. Each
+nonterminal symbol has a procedure to parse it. Statements are parsed with the
+function Stat, which is shown in Figure 3.20. The one-token lookahead is put in T
+and used in a case statement to find the correct branch of the Stat grammar rule.
+Statement sequences are parsed by the procedure Sequence, a generic procedure
+that also handles comparison sequences, expression sequences, and term sequences.
+Sequence is written as follows:
+
+```oz
+fun {Sequence NonTerm Sep S1 Sn}
+X1 S2 T S3 in
+    X1={NonTerm S1 S2}
+    S2=T|S3
+    if {Sep T} then X2 in
+        X2={Sequence NonTerm Sep S3 Sn}
+        T(X1 X2) % Dynamic record creation
+    else
+    S2=Sn
+    X1
+    end
+end
+```
+
+It takes two input functions: NonTerm (which is passed any nonterminal) and Sep
+(which detects the separator symbol in a sequence). The syntax T(X1 X2) does
+dynamic record creation according to a label that is known only at run time; it is
+syntactic sugar for
+
+```oz
+local R={MakeRecord T [1 2]} in X1=R.1 X2=R.2 R end
+```
+
+Comparisons, expressions, and terms are parsed as follows with Sequence:
+
+```oz
+fun {Comp S1 Sn} {Sequence Expr COP S1 Sn} end
+fun {Expr S1 Sn} {Sequence Term EOP S1 Sn} end
+fun {Term S1 Sn} {Sequence Fact TOP S1 Sn} end
+```
+
+Each of these three functions has its corresponding function for detecting separators:
+
+```oz
+fun {COP Y}
+    Y== ́< ́ orelse Y== ́> ́ orelse Y== ́=< ́ orelse
+    Y== ́>= ́ orelse Y== ́== ́ orelse Y== ́!= ́
+end
+fun {EOP Y} Y== ́+ ́ orelse Y== ́- ́ end
+fun {TOP Y} Y== ́* ́ orelse Y== ́/ ́ end
+```
+
+Finally, factors and identifiers are parsed as follows:
+
+```oz
+fun {Fact S1 Sn}
+T|S2=S1 in
+    if {IsInt T} orelse {IsIdent T} then
+        S2=Sn
+        T
+    else E S2 S3 in
+        S1= ́( ́|S2
+        E={Expr S2 S3}
+        S3= ́) ́|Sn
+        E
+    end
+end
+
+fun {Id S1 Sn} X in S1=X|Sn true={IsIdent X} X end
+fun {IsIdent X} {IsAtom X} end
+```
+
+Integers are represented as built-in integer values and detected using the built-in
+IsInt function.
+This parsing technique works for grammars where one-token lookahead is enough.
+Some grammars, called ambiguous grammars, require looking at more than one
+token to decide which grammar rule is needed. A simple way to parse them is with
+nondeterministic choice.
